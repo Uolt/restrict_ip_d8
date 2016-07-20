@@ -1,0 +1,6 @@
+type: module
+name: Restrict IP
+description: 'Restricts access to the site to a list of user defined IP addresses.'
+package: Development
+core: 8.x
+configure: restrict_ip.admin_settings

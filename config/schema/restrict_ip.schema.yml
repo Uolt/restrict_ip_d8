@@ -1,0 +1,21 @@
+# Schema for the configuration files of the Restrict ip module.
+
+restrict_ip.settings:
+  type: config_object
+  label: 'Restrict ip settings'
+  mapping:
+    address_list:
+      type: string
+      label: 'Address list'
+    mail_address:
+      type: string
+      label: 'Mail address'
+    watchdog:
+      type: boolean
+      label: 'Watchdog'
+    allow_role_bypass:
+      type: boolean
+      label: 'Allow role bypass'
+    login_link_denied_page:
+      type: boolean
+      label: 'Login link denied page'

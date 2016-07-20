@@ -1,0 +1,252 @@
+<?php
+
+
+//	if(variable_get('restrict_ip_allow_role_bypass'))
+//	{
+//		$permissions['Bypass IP Restriction'] = array
+//		(
+//			'title' => 'Bypass IP Restriction',
+//			'description' => 'Allows the user to access the site even if not in the IP whitelist',
+//		);
+//	}
+
+
+/**
+ * Function used to set or determine if the user's ip address is not whitelisted
+ */
+function ip_restricted($block = FALSE)
+{
+	$blocked = &drupal_static(__function__);
+	if(is_null($blocked))
+	{
+		$blocked = FALSE;
+	}
+
+	// We do this check as block will only be set
+	// when the user is in hook_boot(). If we were
+	// to run the code in the else{} block during
+	// hook_boot(), we'd get an error as user_access()
+	// is not yet available.
+	if($block)
+	{
+		$blocked = TRUE;
+	}
+	else
+	{
+		if($blocked)
+		{
+			if(variable_get('restrict_ip_allow_role_bypass', FALSE))
+			{
+				if(user_access('Bypass IP Restriction') || in_array(current_path(), array('user', 'user/login', 'user/password', 'user/logout')) || strpos(current_path(), 'user/reset/') === 0)
+				{
+					return FALSE;
+				}
+			}
+		}
+
+		return $blocked;
+	}
+}
+
+/**
+ * Helper function that takes a string containing IP addresses on separate lines,
+ * Strips them of any code comments, trims them, and turns them into a nice array
+ * of sanitized elements. Note that the elements may or may not be IP addresses
+ * and if validation is necessary, the array returned from this function should
+ * be validated.
+ */
+function restrict_ip_sanitize_ip_list($raw_ip_addresses)
+{
+	$ip_addresses = trim($raw_ip_addresses);
+	$ip_addresses = preg_replace('/(\/\/|#).+/', '', $ip_addresses);
+	$ip_addresses = preg_replace('~/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/~', '', $ip_addresses);
+
+	$addresses = explode(PHP_EOL, $ip_addresses);
+
+	$return = array();
+	foreach($addresses as $ip_address)
+	{
+		$trimmed = trim($ip_address);
+		if(strlen($trimmed))
+		{
+			$return[] = $trimmed;
+		}
+	}
+
+	return $return;
+}
+
+/**
+ * Implementation of hook_block_view_MODULE_DELTA_alter()
+ *
+ * This function adds a key that is used to identify the main
+ * content block, so that it is not unset in hook_block_view_alter()
+ */
+function restrict_ip_block_view_system_main_alter(&$vars)
+{
+	$vars['block_id'] = 'system-main';
+}
+
+/**
+ * Implementation of hook_block_view_alter()
+ *
+ * This function unsets all blocks except the main
+ * content block for users who are not whitelisted
+ */
+function restrict_ip_block_view_alter(&$vars)
+{
+	if(!ip_restricted())
+	{
+		if(!isset($vars['block_id']) || $vars['block_id'] != 'system-main')
+		{
+			$vars['#access'] = FALSE;
+		}
+	}
+}
+
+/**
+ * Implementation of hook_page_alter()
+ *
+ * This function redirects non-whitelisted users
+ * to the access denied page, and unsets all
+ * regions of the page, except for the content
+ * regions, which shows the blacklisted error
+ * to users.
+ */
+function restrict_ip_page_alter(&$page)
+{
+	global $theme;
+
+	if(ip_restricted())
+	{
+		if(current_path() != 'restrict_ip/access_denied')
+		{
+			if(module_exists('dblog') && variable_get('restrict_ip_watchdog', FALSE))
+			{
+				$current_path = drupal_get_path_alias(filter_xss(check_plain(current_path())));
+				watchdog('Restrict IP', 'Access to the path %path was blocked for the IP address %ip_address', array('%path' => $current_path, '%ip_address' => ip_address()));
+			}
+
+			drupal_goto('restrict_ip/access_denied');
+		}
+
+		$regions = system_region_list($theme, REGIONS_ALL);
+		unset($regions['content']);
+
+		$whitelisted_regions = array();
+		foreach(module_implements('restrict_ip_whitelisted_regions') as $module_name)
+		{
+			$function = $module_name . '_restrict_ip_whitelisted_regions';
+			$whitelisted_regions = array_merge($whitelisted_regions, $function());
+		}
+		foreach($whitelisted_regions as $wr)
+		{
+			unset($regions[$wr]);
+		}
+
+		foreach(array_keys($regions) as $region)
+		{
+			if(isset($page[$region]))
+			{
+				$page[$region] = FALSE;
+			}
+		}
+	}
+}
+
+/**
+ * Override of template_preprocess_page()
+ *
+ * This function unsets tabs and various
+ * other page elements for blocked users
+ * so they are not rendered
+ */
+function restrict_ip_preprocess_page(&$page)
+{
+	if(ip_restricted())
+	{
+		if(isset($page['tabs']))
+		{
+			if(isset($page['tabs']['#primary']))
+			{
+				$page['tabs']['#primary'] = array();
+			}
+			if(isset($page['tabs']['#secondary']))
+			{
+				$page['tabs']['#primary'] = array();
+			}
+		}
+		$page['title_prefix'] = array();
+		$page['title_suffix'] = array();
+		$page['main_menu'] = array();
+		$page['secondary_menu'] = array();
+		$page['action_links'] = array();
+	}
+}
+
+/**
+ * Override of template_preprocess_html()
+ *
+ * This function unsets $page_top and $page_bottom
+ * so that they are not passed to html.tpl.php,
+ * preventing these regions from being rendered
+ */
+function restrict_ip_preprocess_html(&$items)
+{
+	if(ip_restricted())
+	{
+		if(isset($items['page']['page_top']))
+		{
+			$items['page']['page_top'] = FALSE;
+		}
+		if(isset($items['page']['page_top']))
+		{
+			$items['page']['page_bottom'] = FALSE;
+		}
+	}
+}
+
+/**
+ * Implementation of hook_js_alter()
+ *
+ * This function removes all javascript from the page
+ * with the exception of jquery.js and the javascript
+ * file provided with the module
+ */
+function restrict_ip_js_alter(&$javascript)
+{
+	if(ip_restricted())
+	{
+		$whitelisted_keys = array
+		(
+			'misc/jquery.js',
+			drupal_get_path('module', 'restrict_ip') . '/js/restrict_ip.js',
+		);
+		foreach(module_implements('restrict_ip_whitelisted_js_keys') as $module_name)
+		{
+			$function = $module_name . '_restrict_ip_whitelisted_js_keys';
+			$whitelisted_keys = array_merge($whitelisted_keys, $function());
+		}
+
+		foreach(array_keys($javascript) as $key)
+		{
+			if(!in_array($key, $whitelisted_keys))
+			{
+				unset($javascript[$key]);
+			}
+		}
+	}
+}
+
+/**
+ * Override of template_preprocess_breadcrumb()
+ *
+ * Unsets the breadcrumb if the user has not been whitelisted
+ */
+function restrict_ip_preprocess_breadcrumb(&$vars)
+{
+	if(ip_restricted())
+	{
+		$vars['breadcrumb'] = array();
+	}
+}

@@ -1,0 +1,13 @@
+restrict_ip.admin_settings:
+  path: '/admin/config/people/restrict_ip'
+  defaults:
+    _form: '\Drupal\restrict_ip\Form\RestrictIpSettingsForm'
+    _title: 'IP Address Whitelist'
+  requirements:
+    _permission: 'administer restricted ip addresses'
+
+expiring_users.admin:
+  path: '/restrict_ip/access_denied'
+  defaults:
+    _controller: '\Drupal\restrict_ip\Controller\RestrictIpPages::accessDenied'
+    _title: 'Access Denied'

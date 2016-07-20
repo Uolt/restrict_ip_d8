@@ -1,0 +1,14 @@
+services:
+  restrict_ip.service:
+    class: Drupal\restrict_ip\RestrictIpService
+    arguments: []
+
+  restrict_ip.restriction:
+    class: Drupal\restrict_ip\RestrictIpRestriction
+    arguments: []
+
+  restrict_ip.restrict_ip_subscriber:
+    class: Drupal\restrict_ip\RestrictIpSubscriber
+    arguments: ['@request']
+    tags:
+      - { name: 'event_subscriber' }

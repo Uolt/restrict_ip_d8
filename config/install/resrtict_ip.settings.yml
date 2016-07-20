@@ -1,0 +1,5 @@
+address_list: ''
+mail_address: ''
+watchdog: FALSE
+allow_role_bypass: FALSE
+login_link_denied_page: FALSE

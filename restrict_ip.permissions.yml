@@ -1,0 +1,8 @@
+administer restricted ip addresses:
+  title: 'Administer Restricted IP addresses'
+  description: 'Allows the user to set admitted IP addresses'
+  restrict access: TRUE
+bypass ip restriction:
+  title: 'Bypass IP Restriction'
+  description: 'Allows the user to access the site even if not in the IP whitelist'
+  restrict access: TRUE

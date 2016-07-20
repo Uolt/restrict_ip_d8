@@ -1,0 +1,6 @@
+{
+  "name": "drupal/restrict_ip",
+  "description": "Restricts access to the site to a list of user defined IP addresses.",
+  "type": "drupal-module",
+  "license": "GPL-2.0+"
+}
